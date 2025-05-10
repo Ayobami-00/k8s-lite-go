@@ -158,7 +158,7 @@ func (s *APIServer) listNodesHandlerGin(c *gin.Context) {
 }
 
 func main() {
-	gin.SetMode(gin.ReleaseMode) //Or gin.DebugMode for development
+	gin.SetMode(gin.ReleaseMode) // Or gin.DebugMode for development
 	dataStore := store.NewInMemoryStore()
 	server := NewAPIServer(dataStore)
 	server.Serve("8080") // Serve on port 8080
