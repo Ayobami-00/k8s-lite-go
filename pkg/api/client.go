@@ -38,6 +38,11 @@ func (c *Client) buildURL(pathSegments ...string) string {
 	return u.String()
 }
 
+// GetBaseURL returns the base URL string of the client.
+func (c *Client) GetBaseURL() string {
+	return c.baseURL.String()
+}
+
 // CreateNode sends a POST request to create/register a node.
 func (c *Client) CreateNode(node *Node) (*Node, error) {
 	urlStr := c.buildURL("api", "v1", "nodes")
@@ -203,5 +208,125 @@ func (c *Client) UpdatePod(pod *Pod) error {
 		return fmt.Errorf("server returned non-OK status for update: %d", resp.StatusCode)
 	}
 	// Optionally decode the response body if the updated pod is returned
+	return nil
+}
+
+// GetNode fetches a specific node by name.
+func (c *Client) GetNode(name string) (*Node, error) {
+	urlStr := c.buildURL("api", "v1", "nodes", name)
+	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for get node: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing request for get node: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("node %s not found", name) // Specific error for not found
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned non-OK status for get node: %d", resp.StatusCode)
+	}
+
+	var node Node
+	if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
+		return nil, fmt.Errorf("decoding node response: %w", err)
+	}
+	return &node, nil
+}
+
+// CreatePod sends a POST request to create a pod in a specific namespace.
+func (c *Client) CreatePod(namespace string, pod *Pod) (*Pod, error) {
+	if namespace == "" {
+		namespace = "default" // Or use a constant
+	}
+	urlStr := c.buildURL("api", "v1", "namespaces", namespace, "pods")
+
+	body, err := json.Marshal(pod)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling pod: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		// TODO: Read body for more detailed error message from server
+		return nil, fmt.Errorf("server returned non-Created status for create pod: %d", resp.StatusCode)
+	}
+
+	var createdPod Pod
+	if err := json.NewDecoder(resp.Body).Decode(&createdPod); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &createdPod, nil
+}
+
+// GetPod fetches a specific pod by name from a namespace.
+func (c *Client) GetPod(namespace, name string) (*Pod, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	urlStr := c.buildURL("api", "v1", "namespaces", namespace, "pods", name)
+	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request for get pod: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing request for get pod: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("pod %s/%s not found", namespace, name)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned non-OK status for get pod: %d", resp.StatusCode)
+	}
+
+	var pod Pod
+	if err := json.NewDecoder(resp.Body).Decode(&pod); err != nil {
+		return nil, fmt.Errorf("decoding pod response: %w", err)
+	}
+	return &pod, nil
+}
+
+// DeletePod sends a DELETE request to remove a pod.
+func (c *Client) DeletePod(namespace, name string) error {
+	if namespace == "" {
+		namespace = "default"
+	}
+	urlStr := c.buildURL("api", "v1", "namespaces", namespace, "pods", name)
+
+	req, err := http.NewRequest(http.MethodDelete, urlStr, nil)
+	if err != nil {
+		return fmt.Errorf("creating request for delete pod: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request for delete pod: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent { // Some APIs return 204 for delete
+		// TODO: Read body for more detailed error message from server
+		return fmt.Errorf("server returned non-OK status for delete pod: %d", resp.StatusCode)
+	}
 	return nil
 }

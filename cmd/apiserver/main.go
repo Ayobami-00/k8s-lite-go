@@ -29,6 +29,7 @@ func (s *APIServer) Serve(port string) {
 		podsGroup.POST("", s.createPodHandlerGin)
 		podsGroup.GET("", s.listPodsHandlerGin)
 		podsGroup.GET("/:podname", s.getPodHandlerGin)
+		podsGroup.PUT("/:podname", s.updatePodHandlerGin) // Added route for updating a pod
 		podsGroup.DELETE("/:podname", s.deletePodHandlerGin)
 	}
 
@@ -111,6 +112,42 @@ func (s *APIServer) deletePodHandlerGin(c *gin.Context) {
 	}
 	log.Printf("Deleted pod %s/%s", namespace, podName)
 	c.JSON(200, gin.H{"message": fmt.Sprintf("Pod %s/%s deleted", namespace, podName)})
+}
+
+// Gin handler for updating a specific pod
+func (s *APIServer) updatePodHandlerGin(c *gin.Context) {
+	namespace := c.Param("namespace")
+	podName := c.Param("podname")
+
+	var pod api.Pod
+	if err := c.ShouldBindJSON(&pod); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	if pod.Name != podName {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Pod name in body (%s) does not match name in URL (%s)", pod.Name, podName)})
+		return
+	}
+	if pod.Namespace != namespace {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Pod namespace in body (%s) does not match namespace in URL (%s)", pod.Namespace, namespace)})
+		return
+	}
+
+	// Ensure the pod exists before updating (optional, store might handle this)
+	_, err := s.store.GetPod(namespace, podName)
+	if err != nil {
+		c.JSON(404, gin.H{"error": fmt.Sprintf("Pod %s/%s not found for update: %s", namespace, podName, err.Error())})
+		return
+	}
+
+	if err := s.store.UpdatePod(&pod); err != nil {
+		log.Printf("Failed to update pod in store: %v", err)
+		c.JSON(500, gin.H{"error": "Failed to update pod: " + err.Error()})
+		return
+	}
+
+	c.JSON(200, pod)
 }
 
 // Gin handler for creating a node
