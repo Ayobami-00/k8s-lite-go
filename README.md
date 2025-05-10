@@ -52,11 +52,13 @@ k8s-lite-go/
 
 ### Setup
 1. **Clone the repo:**
+
    ```sh
    git clone https://github.com/Ayobami-00/k8s-lite-go
    cd k8s-lite-go
    ```
 2. **Build all binaries:**
+
    ```sh
    make build
    ```
