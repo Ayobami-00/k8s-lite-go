@@ -88,7 +88,7 @@ You can run multiple kubelets (with different NODE names) to simulate a multi-no
 
 ---
 
-## Interacting with the Cluster (Testing the Pod Lifecycle)
+## Interacting with the Cluster
 
 A simple CLI is provided via the Makefile. Example flows:
 
