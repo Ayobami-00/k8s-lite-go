@@ -38,6 +38,70 @@ func (c *Client) buildURL(pathSegments ...string) string {
 	return u.String()
 }
 
+// CreateNode sends a POST request to create/register a node.
+func (c *Client) CreateNode(node *Node) (*Node, error) {
+	urlStr := c.buildURL("api", "v1", "nodes")
+
+	body, err := json.Marshal(node)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling node: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		// TODO: Read body for more detailed error message from server
+		return nil, fmt.Errorf("server returned non-Created status for create node: %d", resp.StatusCode)
+	}
+
+	var createdNode Node
+	if err := json.NewDecoder(resp.Body).Decode(&createdNode); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+	return &createdNode, nil
+}
+
+// UpdateNode sends a PUT request to update a node.
+func (c *Client) UpdateNode(node *Node) error {
+	if node.Name == "" {
+		return fmt.Errorf("node name must be specified for update")
+	}
+	urlStr := c.buildURL("api", "v1", "nodes", node.Name)
+
+	body, err := json.Marshal(node)
+	if err != nil {
+		return fmt.Errorf("marshalling node: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, urlStr, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// TODO: Read body for more detailed error message from server
+		return fmt.Errorf("server returned non-OK status for update node: %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // ListPods fetches pods, optionally filtering by phase.
 // For now, it gets all pods for the namespace and filters client-side if phase is specified.
 // A more efficient API would support server-side filtering by phase.

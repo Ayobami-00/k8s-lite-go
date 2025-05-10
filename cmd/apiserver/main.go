@@ -39,6 +39,7 @@ func (s *APIServer) Serve(port string) {
 		nodesGroup.POST("", s.createNodeHandlerGin)
 		nodesGroup.GET("", s.listNodesHandlerGin)
 		nodesGroup.GET("/:nodename", s.getNodeHandlerGin)
+		nodesGroup.PUT("/:nodename", s.updateNodeHandlerGin) // Add PUT route for updating a node
 		// DELETE for a node could be added here: nodesGroup.DELETE("/:nodename", s.deleteNodeHandlerGin)
 	}
 
@@ -155,6 +156,38 @@ func (s *APIServer) listNodesHandlerGin(c *gin.Context) {
 		return
 	}
 	c.JSON(200, nodes)
+}
+
+// Gin handler for updating a specific node
+func (s *APIServer) updateNodeHandlerGin(c *gin.Context) {
+	nodeName := c.Param("nodename")
+	var updatedNode api.Node
+
+	if err := c.ShouldBindJSON(&updatedNode); err != nil {
+		c.JSON(400, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	// Ensure the name from the path is used and matches the body if provided.
+	if updatedNode.Name != "" && updatedNode.Name != nodeName {
+		c.JSON(400, gin.H{"error": fmt.Sprintf("Node name in body (%s) does not match path (%s)", updatedNode.Name, nodeName)})
+		return
+	}
+	updatedNode.Name = nodeName // Use name from path
+
+	// Check if node exists before updating - GetNode also serves this purpose
+	_, err := s.store.GetNode(nodeName)
+	if err != nil {
+		c.JSON(404, gin.H{"error": "Node not found for update: " + err.Error()}) // StatusNotFound
+		return
+	}
+
+	if err := s.store.UpdateNode(&updatedNode); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to update node: " + err.Error()})
+		return
+	}
+	log.Printf("Updated node %s", updatedNode.Name)
+	c.JSON(200, updatedNode)
 }
 
 func main() {
