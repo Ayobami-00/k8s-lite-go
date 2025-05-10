@@ -60,8 +60,7 @@ func (k *Kubelet) registerNode() error {
 func (k *Kubelet) syncPods() {
 	log.Printf("[%s] Syncing pods...", k.NodeName)
 
-	// 1. Get all pods in the default namespace (Kubelet typically watches specific pods or all assigned)
-	// For simplicity, we fetch all and filter.
+	// 1. Get all pods in the default namespace
 	pods, err := k.APIClient.ListPods(DefaultNamespace, "") // Get all pods, any phase
 	if err != nil {
 		log.Printf("[%s] Error fetching pods: %v", k.NodeName, err)
@@ -71,36 +70,84 @@ func (k *Kubelet) syncPods() {
 	for _, pod := range pods {
 		// Check if the pod is scheduled to this node
 		if pod.NodeName == k.NodeName {
+
+			// **NEW SECTION: Handle terminating pods first**
+			if pod.DeletionTimestamp != nil {
+				// If the pod is marked for deletion, process its termination.
+				if pod.Phase != api.PodSucceeded && pod.Phase != api.PodFailed && pod.Phase != api.PodDeleted { // Also check against PodDeleted
+					log.Printf("[%s] Detected terminating pod %s. Simulating cleanup and marking as Deleted.", k.NodeName, pod.Name)
+					updatedPod := pod                 // Make a copy
+					updatedPod.Phase = api.PodDeleted // CHANGE THIS LINE
+					// updatedPod.Phase = api.PodSucceeded (OLD LINE)
+
+					if err := k.APIClient.UpdatePod(&updatedPod); err != nil {
+						log.Printf("[%s] Error updating pod %s to Deleted after termination: %v", k.NodeName, pod.Name, err)
+					} else {
+						log.Printf("[%s] Pod %s marked as Deleted after termination processing.", k.NodeName, pod.Name)
+					}
+				} else {
+					// Pod is terminating but already in a final state (Succeeded, Failed, or Deleted).
+					log.Printf("[%s] Pod %s is terminating and already in state %s. No Kubelet action needed.", k.NodeName, pod.Name, pod.Phase)
+				}
+				continue
+			}
+			// **END OF NEW SECTION**
+
+			// Original switch statement, now effectively for non-terminating pods
 			switch pod.Phase {
 			case api.PodScheduled:
 				log.Printf("[%s] Found scheduled pod %s. 'Starting' it...", k.NodeName, pod.Name)
-				// Simulate starting the pod
 				updatedPod := pod
 				updatedPod.Phase = api.PodRunning
-				// updatedPod.HostIP = k.NodeAddress // Kubelet could set this
-				// updatedPod.PodIP = "10.0.1.x" // In a real scenario, CNI would assign this
-
 				if err := k.APIClient.UpdatePod(&updatedPod); err != nil {
 					log.Printf("[%s] Error updating pod %s to Running: %v", k.NodeName, pod.Name, err)
 				} else {
 					log.Printf("[%s] Pod %s with image '%s' is now 'Running'.", k.NodeName, pod.Name, pod.Image)
-					// k.knownPods[pod.Name] = api.PodRunning
 				}
 			case api.PodRunning:
 				// log.Printf("[%s] Pod %s is already running.", k.NodeName, pod.Name)
 				// Potentially check health here
 				break
-			case api.PodDeleting: // A more robust Kubelet would handle this
-				log.Printf("[%s] Detected pod %s marked for deletion. 'Stopping' it...", k.NodeName, pod.Name)
-				// Simulate cleanup, then actual deletion could be done by a controller or here after confirmation.
-				// For now, we just acknowledge. The API server directly deletes it in our simplified model.
-				// delete(k.knownPods, pod.Name)
+
+			case api.PodTerminating:
+				log.Printf("[%s] Pod %s found in Terminating phase. Processing termination.", k.NodeName, pod.Name)
+				if pod.Phase != api.PodSucceeded && pod.Phase != api.PodFailed && pod.Phase != api.PodDeleted { // Also check against PodDeleted
+					updatedPod := pod
+					updatedPod.Phase = api.PodDeleted // CHANGE THIS
+					if err := k.APIClient.UpdatePod(&updatedPod); err != nil {
+						log.Printf("[%s] Error updating pod %s from Terminating to Deleted: %v", k.NodeName, pod.Name, err)
+					} else {
+						log.Printf("[%s] Pod %s (in Terminating phase) marked as Deleted.", k.NodeName, pod.Name)
+					}
+				}
+
+			case api.PodDeleting: // This was an older phase name you had.
+				log.Printf("[%s] Detected pod %s in PodDeleting phase. Handling as terminating.", k.NodeName, pod.Name)
+				// Similar logic to PodTerminating or rely on DeletionTimestamp check
+				if pod.DeletionTimestamp == nil { // If timestamp wasn't set, but phase is Deleting
+					log.Printf("[%s] Warning: Pod %s in PodDeleting phase but DeletionTimestamp is nil. This should be synchronized.", k.NodeName, pod.Name)
+				}
+				// The DeletionTimestamp check at the top should handle most cases.
+				// If we reach here and it's not Succeeded/Failed, update it.
+				if pod.Phase != api.PodSucceeded && pod.Phase != api.PodFailed {
+					updatedPod := pod
+					updatedPod.Phase = api.PodSucceeded
+					if err := k.APIClient.UpdatePod(&updatedPod); err != nil {
+						log.Printf("[%s] Error updating pod %s from PodDeleting to Succeeded: %v", k.NodeName, pod.Name, err)
+					} else {
+						log.Printf("[%s] Pod %s (in PodDeleting phase) marked as Succeeded.", k.NodeName, pod.Name)
+					}
+				}
+
 			default:
-				// Do nothing for other phases like Pending, Succeeded, Failed for now
+				// Do nothing for other phases like Pending (handled by scheduler), Succeeded, Failed (final states)
+				if pod.Phase != api.PodPending && pod.Phase != api.PodSucceeded && pod.Phase != api.PodFailed {
+					log.Printf("[%s] Pod %s found in unhandled phase: %s", k.NodeName, pod.Name, pod.Phase)
+				}
 			}
 		}
 	}
-	// TODO: Implement logic to detect and "stop" pods that were running on this node but are no longer in the API server's list or are marked for deletion.
+	// TODO: Implement logic to detect and "stop" pods that were running on this node but are no longer in the API server's list
 }
 
 func main() {

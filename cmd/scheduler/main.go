@@ -41,6 +41,13 @@ func schedulePods(client *api.Client) {
 
 	// 3. Assign pods to nodes (simple round-robin)
 	for _, pod := range pendingPods {
+		// Explicitly check if the pod is marked for deletion, even if filtered by ListPods
+		// This handles potential race conditions or changes in ListPods behavior.
+		if pod.DeletionTimestamp != nil {
+			log.Printf("Scheduler: Skipping pod %s/%s as it is marked for deletion.", pod.Namespace, pod.Name)
+			continue
+		}
+
 		// Select node
 		if len(readyNodes) == 0 { // Should not happen if check above is done, but defensive
 			log.Printf("No ready nodes left to schedule pod %s/%s", pod.Namespace, pod.Name)

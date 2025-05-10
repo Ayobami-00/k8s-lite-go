@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/Ayobami-00/k8s-lite-go/pkg/api"
 	"github.com/Ayobami-00/k8s-lite-go/pkg/store"
@@ -72,7 +73,12 @@ func (s *APIServer) createPodHandlerGin(c *gin.Context) {
 	pod.NodeName = ""          // Not scheduled yet
 
 	if err := s.store.CreatePod(&pod); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to create pod: " + err.Error()})
+		log.Printf("Error creating pod %s/%s in store: %v", pod.Namespace, pod.Name, err) // Log the actual error
+		if strings.Contains(err.Error(), "already exists") {
+			c.JSON(409, gin.H{"error": "Failed to create pod: " + err.Error()}) // 409 Conflict
+		} else {
+			c.JSON(500, gin.H{"error": "Failed to create pod: " + err.Error()}) // 500 for other errors
+		}
 		return
 	}
 	log.Printf("Created pod %s/%s", pod.Namespace, pod.Name)
@@ -107,7 +113,12 @@ func (s *APIServer) deletePodHandlerGin(c *gin.Context) {
 	namespace := c.Param("namespace")
 	podName := c.Param("podname")
 	if err := s.store.DeletePod(namespace, podName); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to delete pod: " + err.Error()})
+		log.Printf("Error deleting pod %s/%s from store: %v", namespace, podName, err) // Log the actual error
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(404, gin.H{"error": "Failed to delete pod: " + err.Error()}) // 404 Not Found
+		} else {
+			c.JSON(500, gin.H{"error": "Failed to delete pod: " + err.Error()}) // 500 for other errors
+		}
 		return
 	}
 	log.Printf("Deleted pod %s/%s", namespace, podName)

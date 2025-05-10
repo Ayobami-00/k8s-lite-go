@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Ayobami-00/k8s-lite-go/pkg/api"
 )
@@ -54,28 +55,74 @@ func (s *InMemoryStore) GetPod(namespace, name string) (*api.Pod, error) {
 }
 
 // UpdatePod updates an existing pod in the store.
+// It prevents updates to NodeName or Phase if the pod is already marked for deletion,
+// but allows Kubelet to update phase to Succeeded/Failed.
 func (s *InMemoryStore) UpdatePod(pod *api.Pod) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := podKey(pod.Namespace, pod.Name)
-	if _, exists := s.pods[key]; !exists {
+	existingPod, exists := s.pods[key]
+	if !exists {
 		return fmt.Errorf("pod %s in namespace %s not found for update", pod.Name, pod.Namespace)
 	}
-	s.pods[key] = pod // Replace the existing pod
+
+	if existingPod.DeletionTimestamp != nil {
+		// Pod is already marked for deletion in the store.
+
+		// Ensure the incoming update acknowledges the existing DeletionTimestamp.
+		// This prevents a stale update from before deletion was initiated from overwriting it.
+		if pod.DeletionTimestamp == nil || !pod.DeletionTimestamp.Equal(*existingPod.DeletionTimestamp) {
+			return fmt.Errorf("cannot update pod %s in namespace %s: incoming update does not have matching DeletionTimestamp for an already terminating pod", pod.Name, pod.Namespace)
+		}
+
+		// Allow updates to phase to Succeeded or Failed, or if phase is still Terminating (e.g. Kubelet updating other statuses).
+		// Also, ensure NodeName does not change during termination.
+		if pod.Phase == api.PodSucceeded || pod.Phase == api.PodFailed || pod.Phase == api.PodTerminating || pod.Phase == api.PodDeleted { // ADD PodDeleted HERE
+			if pod.NodeName != existingPod.NodeName {
+				return fmt.Errorf("cannot change NodeName of pod %s in namespace %s as it is terminating", pod.Name, pod.Namespace)
+			}
+			s.pods[key] = pod
+			return nil
+		}
+
+		// If it's terminating and the update tries to set it to something other than Succeeded, Failed, or Terminating
+		return fmt.Errorf("cannot update pod %s in namespace %s to phase %s as it is terminating; only Succeeded, Failed, or Terminating are allowed", pod.Name, pod.Namespace, pod.Phase)
+	}
+
+	// If the existing pod is NOT terminating, but the update tries to set a DeletionTimestamp,
+	// guide to use DeletePod.
+	if pod.DeletionTimestamp != nil && existingPod.DeletionTimestamp == nil {
+		return fmt.Errorf("to mark pod %s in namespace %s for deletion, use DeletePod method", pod.Name, pod.Namespace)
+	}
+
+	// Standard update for non-terminating pods
+	s.pods[key] = pod
 	return nil
 }
 
-// DeletePod removes a pod from the store.
+// DeletePod marks a pod for deletion by setting its DeletionTimestamp and Phase.
+// It does not immediately remove the pod from the store.
 func (s *InMemoryStore) DeletePod(namespace, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	key := podKey(namespace, name)
-	if _, exists := s.pods[key]; !exists {
+	pod, exists := s.pods[key]
+	if !exists {
 		return fmt.Errorf("pod %s in namespace %s not found for deletion", name, namespace)
 	}
-	delete(s.pods, key)
+
+	if pod.DeletionTimestamp != nil {
+		// Already marked for deletion, could return a specific error or just succeed
+		return fmt.Errorf("pod %s in namespace %s is already being deleted", name, namespace)
+	}
+
+	now := time.Now()
+	pod.DeletionTimestamp = &now
+	pod.Phase = api.PodTerminating // Set phase to Terminating
+	s.pods[key] = pod              // Update the pod in the store with new phase and timestamp
+
 	return nil
 }
 
