@@ -83,7 +83,7 @@ make run-scheduler
 
 ### 3. Start a Kubelet (simulates a node, e.g. "node1")
 ```sh
-make kubelet NODE=node1
+make run-kubelet NODE_NAME=node1 NODE_ADDRESS=localhost:10250
 ```
 You can run multiple kubelets (with different NODE names) to simulate a multi-node cluster.
 
