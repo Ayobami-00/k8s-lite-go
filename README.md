@@ -36,6 +36,7 @@ k8s-lite-go/
 **Key files:**
 - `cmd/apiserver/main.go`: REST API server, CRUD for pods/nodes, business logic
 - `cmd/scheduler/main.go`: Scheduler loop, assigns pods to nodes
+- `cmd/kubectl-lite/main.go`: Minimal CLI tool to create/get/delete pods and nodes
 - `cmd/kubelet/main.go`: Kubelet (node agent), simulates pod execution and cleanup
 - `pkg/api/types.go`: Pod, Node, PodPhase definitions
 - `pkg/api/client.go`: Go client for API server
