@@ -115,9 +115,9 @@ func handleGetCommand(client *api.Client, args []string) {
 	var resourceName string
 	if len(args) > 1 && !strings.HasPrefix(args[1], "-") {
 		resourceName = args[1]
-		getCmd.Parse(args[2:])
+		_ = getCmd.Parse(args[2:])
 	} else {
-		getCmd.Parse(args[1:])
+		_ = getCmd.Parse(args[1:])
 	}
 
 	switch resourceType {
@@ -165,7 +165,7 @@ func handleDeleteCommand(client *api.Client, args []string) {
 	}
 	resourceType := args[0]
 	resourceName := args[1]
-	deleteCmd.Parse(args[2:])
+	_ = deleteCmd.Parse(args[2:])
 
 	switch resourceType {
 	case "pod":

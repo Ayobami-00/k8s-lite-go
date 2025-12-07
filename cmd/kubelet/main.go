@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/Ayobami-00/k8s-lite-go/pkg/api"
@@ -178,13 +177,4 @@ func main() {
 		k.syncPods()
 		time.Sleep(*syncInterval)
 	}
-}
-
-// Helper function to get hostname, useful for default node name
-func getHostname() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return "unknown-host"
-	}
-	return hostname
 }

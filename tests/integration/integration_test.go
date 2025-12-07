@@ -204,7 +204,7 @@ func (tc *TestCluster) Stop() {
 			tc.t.Logf("%s stopped", name)
 		case <-time.After(shutdownTimeout):
 			tc.t.Logf("%s did not stop gracefully, killing", name)
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}
 
@@ -476,7 +476,7 @@ func TestPodLifecycle(t *testing.T) {
 
 		// Verify pod is deleted or in deleting state
 		time.Sleep(1 * time.Second)
-		_, err = cluster.GetPod("default", "test-pod")
+		_, _ = cluster.GetPod("default", "test-pod")
 		// Pod might still exist in Deleting state or be fully deleted
 		// Both are acceptable outcomes
 	})
@@ -526,7 +526,7 @@ func TestMultiplePods(t *testing.T) {
 
 	// Cleanup
 	for _, name := range podNames {
-		cluster.DeletePod("default", name)
+		_ = cluster.DeletePod("default", name)
 	}
 }
 
@@ -558,7 +558,7 @@ func TestDuplicatePodCreation(t *testing.T) {
 	}
 
 	// Cleanup
-	cluster.DeletePod("default", "duplicate-test")
+	_ = cluster.DeletePod("default", "duplicate-test")
 }
 
 // TestNamespaceIsolation tests that pods in different namespaces are isolated.
@@ -605,6 +605,6 @@ func TestNamespaceIsolation(t *testing.T) {
 	}
 
 	// Cleanup
-	cluster.DeletePod("default", "same-name")
-	cluster.DeletePod("other", "same-name")
+	_ = cluster.DeletePod("default", "same-name")
+	_ = cluster.DeletePod("other", "same-name")
 }
