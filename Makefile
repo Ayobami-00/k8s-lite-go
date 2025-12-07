@@ -9,7 +9,7 @@ GO_FILES_SCHEDULER := $(wildcard cmd/scheduler/*.go)
 GO_FILES_KUBELET := $(wildcard cmd/kubelet/*.go)
 GO_FILES_KUBECTL_LITE := $(wildcard cmd/kubectl-lite/*.go)
 
-.PHONY: all build clean run-apiserver run-scheduler run-kubelet kubectl
+.PHONY: all build clean run-apiserver run-scheduler run-kubelet kubectl test test-unit test-integration
 
 all: build
 
@@ -57,6 +57,17 @@ clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(BIN_DIR)
 
+# Test targets
+test: test-unit test-integration
+
+test-unit:
+	@echo "Running unit tests..."
+	@go test -v -short ./pkg/...
+
+test-integration: build
+	@echo "Running integration tests..."
+	@go test -v -timeout 120s ./tests/integration/...
+
 # Help target to display available commands
 help:
 	@echo "Available targets:"
@@ -71,4 +82,7 @@ help:
 	@echo "  run-kubelet NODE_NAME=<name> NODE_ADDRESS=<addr> - Run the Kubelet (e.g., make run-kubelet NODE_NAME=node1 NODE_ADDRESS=localhost:10250)"
 	@echo "  kubectl CMD='<command_string>' - Run kubectl-lite with the specified command (e.g., make kubectl CMD='get pods')"
 	@echo "  clean                    - Remove build artifacts"
+	@echo "  test                     - Run all tests (unit + integration)"
+	@echo "  test-unit                - Run unit tests only"
+	@echo "  test-integration         - Run integration tests (requires build)"
 	@echo "  help                     - Show this help message"
