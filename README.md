@@ -73,7 +73,7 @@ You can run each component in its own terminal (or background process):
 
 ### 1. Start the API Server
 ```sh
-make apiserver
+make run-apiserver
 ```
 
 ### 2. Start the Scheduler
