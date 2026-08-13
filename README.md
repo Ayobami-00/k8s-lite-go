@@ -1,3 +1,5 @@
+
+
 # k8s-lite-go
 
 [![CI](https://github.com/Ayobami-00/k8s-lite-go/actions/workflows/ci.yml/badge.svg)](https://github.com/Ayobami-00/k8s-lite-go/actions/workflows/ci.yml)
@@ -29,6 +31,7 @@ Perfect for learning, teaching, or experimenting!
 k8s-lite-go/
 ├── cmd/
 │   ├── apiserver/      # The API server binary (main.go)
+│   ├── kubectl-lite/   # The minimal CLI tool (main.go)
 │   ├── scheduler/      # The scheduler binary (main.go)
 │   └── kubelet/        # The Kubelet binary (main.go)
 ├── pkg/
@@ -174,4 +177,3 @@ This project is for educational purposes and is inspired by the core ideas of Ku
 
 - The Kubernetes project for the inspiration
 - All contributors who help improve this project
-
